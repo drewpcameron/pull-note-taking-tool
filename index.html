@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PULL Notes</title>
+  <title>PULL Call Analyzer</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -19,8 +20,6 @@
       --accent-hover: #1d4ed8;
       --accent-light: #eff6ff;
       --danger: #dc2626;
-      --sidebar-w: 240px;
-      --panel-w: 360px;
       --radius: 8px;
     }
 
@@ -28,1047 +27,782 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
       background: var(--bg);
       color: var(--text);
-      height: 100vh;
-      display: flex;
-      overflow: hidden;
+      min-height: 100vh;
     }
 
-    /* ── Sidebar ── */
-    #sidebar {
-      width: var(--sidebar-w);
-      min-width: var(--sidebar-w);
+    header {
       background: var(--surface);
-      border-right: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    #sidebar-header {
-      padding: 20px 16px 14px;
-      border-bottom: 1px solid var(--border-soft);
-    }
-
-    #sidebar-header h1 {
-      font-size: 15px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-    }
-
-    #sidebar-header p {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    #new-call-btn {
-      margin: 12px 10px;
-      padding: 8px 12px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      width: calc(100% - 20px);
-      text-align: left;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      transition: background 0.15s;
-    }
-    #new-call-btn:hover { background: var(--accent-hover); }
-
-    #call-list {
-      flex: 1;
-      overflow-y: auto;
-      padding: 4px 6px 12px;
-    }
-
-    .call-item {
-      padding: 9px 10px;
-      border-radius: 6px;
-      cursor: pointer;
-      margin-bottom: 2px;
-      transition: background 0.1s;
-      position: relative;
-    }
-    .call-item:hover { background: var(--border-soft); }
-    .call-item.active { background: var(--accent-light); }
-
-    .call-item-name {
-      font-size: 13px;
-      font-weight: 500;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      padding-right: 20px;
-    }
-    .call-item.active .call-item-name { color: var(--accent); }
-
-    .call-item-date {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-
-    .call-item-delete {
-      position: absolute;
-      top: 50%;
-      right: 8px;
-      transform: translateY(-50%);
-      width: 20px;
-      height: 20px;
-      display: none;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      color: var(--text-muted);
-      padding: 0;
-    }
-    .call-item:hover .call-item-delete { display: flex; }
-    .call-item-delete:hover { background: #fee2e2; color: var(--danger); }
-
-    /* ── Main ── */
-    #main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    /* ── Call view ── */
-    #call-view {
-      flex: 1;
-      display: none;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    #top-bar {
-      padding: 16px 28px;
       border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      background: var(--surface);
-      min-height: 60px;
-      flex-shrink: 0;
-    }
-
-    #contact-input {
-      flex: 1;
-      font-size: 17px;
-      font-weight: 600;
-      border: none;
-      outline: none;
-      background: transparent;
-      color: var(--text);
-      min-width: 0;
-    }
-    #contact-input::placeholder { color: var(--text-subtle); font-weight: 500; }
-
-    #date-input {
-      font-size: 13px;
-      color: var(--text-muted);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 5px 8px;
-      background: transparent;
-      outline: none;
-      cursor: pointer;
-    }
-    #date-input:focus { border-color: var(--accent); }
-
-    #autosave-indicator {
-      font-size: 11px;
-      color: var(--text-subtle);
-      white-space: nowrap;
-    }
-
-    /* ── Content wrapper: notes + expansion panel side by side ── */
-    #content-wrapper {
-      flex: 1;
-      display: flex;
-      flex-direction: row;
-      overflow: hidden;
-    }
-
-    /* ── Notes area ── */
-    #notes-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 28px 28px 0;
-      min-width: 0;
-    }
-
-    .pull-section { margin-bottom: 28px; }
-
-    .section-label {
-      display: flex;
-      align-items: baseline;
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-
-    .section-letter {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--accent);
-      background: var(--accent-light);
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
-    .section-title {
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    .section-hint {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .textarea-wrapper {
-      position: relative;
-    }
-
-    .pull-textarea {
-      width: 100%;
-      min-height: 100px;
-      resize: vertical;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      font-size: 14px;
-      line-height: 1.6;
-      font-family: inherit;
-      color: var(--text);
-      background: var(--surface);
-      outline: none;
-      transition: border-color 0.15s, background 0.15s;
-    }
-    .pull-textarea:focus { border-color: var(--accent); }
-    .pull-textarea::placeholder { color: var(--text-subtle); }
-    .pull-textarea.panel-active {
-      border-color: var(--accent);
-      background: var(--accent-light);
-    }
-
-    .expand-hint {
-      position: absolute;
-      bottom: 8px;
-      right: 10px;
-      font-size: 11px;
-      color: var(--text-subtle);
-      opacity: 0;
-      transition: opacity 0.15s;
-      pointer-events: none;
-      user-select: none;
-    }
-    .textarea-wrapper:hover .expand-hint { opacity: 1; }
-
-    /* ── Expansion Panel ── */
-    #expansion-panel {
-      width: 0;
-      min-width: 0;
-      overflow: hidden;
-      transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      background: var(--surface);
-      border-left: 1px solid transparent;
-      display: flex;
-      flex-direction: column;
-      flex-shrink: 0;
-    }
-
-    #expansion-panel.open {
-      width: var(--panel-w);
-      min-width: var(--panel-w);
-      border-left-color: var(--border);
-    }
-
-    #panel-header {
-      padding: 14px 16px 12px;
-      border-bottom: 1px solid var(--border-soft);
+      padding: 0 24px;
+      height: 56px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
-    #panel-breadcrumb {
-      font-size: 12px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      flex-wrap: wrap;
-      min-width: 0;
-      overflow: hidden;
+    .header-left { display: flex; align-items: baseline; gap: 0; }
+    .header-title { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+    .header-subtitle { font-size: 12px; color: var(--text-muted); margin-left: 8px; }
+
+    #settings-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      background: none; border: 1px solid var(--border);
+      border-radius: var(--radius); cursor: pointer;
+      color: var(--text-muted); transition: background 0.1s;
+    }
+    #settings-btn:hover { background: var(--border-soft); color: var(--text); }
+
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 24px;
     }
 
-    .bc-link {
-      cursor: pointer;
-      color: var(--accent);
-      white-space: nowrap;
-    }
-    .bc-link:hover { text-decoration: underline; }
-    .bc-current {
-      color: var(--text);
-      font-weight: 600;
-      white-space: nowrap;
-    }
-    .bc-sep { color: var(--text-subtle); }
-
-    #panel-close-btn {
-      width: 24px;
-      height: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: none;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      color: var(--text-muted);
-      flex-shrink: 0;
-    }
-    #panel-close-btn:hover { background: var(--border-soft); color: var(--text); }
-
-    #panel-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 16px;
+    /* Upload zone */
+    #upload-zone {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-    }
-
-    #panel-level-label {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-    }
-
-    #panel-textarea {
-      flex: 1;
-      min-height: 180px;
-      resize: none;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      font-size: 13px;
-      line-height: 1.6;
-      font-family: inherit;
-      color: var(--text);
-      background: var(--bg);
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    #panel-textarea:focus { border-color: var(--accent); }
-    #panel-textarea::placeholder { color: var(--text-subtle); }
-
-    .panel-expand-hint {
-      font-size: 11px;
-      color: var(--text-subtle);
-      text-align: right;
-    }
-
-    /* ── Bottom bar ── */
-    #bottom-bar {
-      padding: 14px 28px;
-      border-top: 1px solid var(--border);
-      display: flex;
-      gap: 10px;
       align-items: center;
-      background: var(--surface);
-      flex-shrink: 0;
+      justify-content: center;
+      min-height: 400px;
+      gap: 16px;
     }
 
-    .action-btn {
-      padding: 8px 14px;
-      border-radius: var(--radius);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.1s, border-color 0.1s;
+    #setup-warning {
+      display: none;
+      background: #fef3c7; border: 1px solid #f59e0b;
+      border-radius: var(--radius); padding: 12px 16px;
+      font-size: 13px; color: #92400e;
+      max-width: 520px; width: 100%; text-align: center;
     }
-    .action-btn:hover { background: var(--bg); border-color: #ccc; }
-    .action-btn.primary {
-      background: var(--accent);
+    #setup-warning a { color: #92400e; font-weight: 600; cursor: pointer; text-decoration: underline; }
+
+    #error-msg {
+      display: none;
+      background: #fef2f2; border: 1px solid #fca5a5;
+      border-radius: var(--radius); padding: 12px 16px;
+      font-size: 13px; color: #991b1b;
+      max-width: 520px; width: 100%;
+    }
+
+    #drop-area {
+      width: 100%; max-width: 520px;
+      border: 2px dashed var(--border);
+      border-radius: 16px; padding: 60px 40px;
+      text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface);
+    }
+    #drop-area:hover, #drop-area.drag-over {
       border-color: var(--accent);
-      color: #fff;
+      background: var(--accent-light);
     }
-    .action-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 
-    #copy-feedback {
-      font-size: 12px;
-      color: #16a34a;
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-    #copy-feedback.show { opacity: 1; }
+    #drop-icon { color: var(--text-subtle); margin: 0 auto 16px; display: block; }
+    #drop-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    #drop-subtitle { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+    #file-input { display: none; }
 
-    /* ── Empty state ── */
-    #empty-state {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      color: var(--text-muted);
-      text-align: center;
-      padding: 40px;
-    }
-    #empty-state h2 { font-size: 18px; color: var(--text); }
-    #empty-state p { font-size: 14px; max-width: 320px; line-height: 1.5; }
-
-    #start-btn {
-      margin-top: 8px;
-      padding: 10px 20px;
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
+    #browse-btn {
+      margin-top: 20px; padding: 9px 18px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: var(--radius);
+      font-size: 13px; font-weight: 500; cursor: pointer;
       transition: background 0.15s;
     }
-    #start-btn:hover { background: var(--accent-hover); }
+    #browse-btn:hover { background: var(--accent-hover); }
+
+    /* Progress */
+    #progress-zone {
+      display: none;
+      flex-direction: column; align-items: center; justify-content: center;
+      min-height: 400px; gap: 24px; text-align: center;
+    }
+
+    #progress-spinner {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #progress-label { font-size: 15px; font-weight: 600; }
+    #progress-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    /* Results */
+    #results-zone { display: none; flex-direction: column; gap: 20px; }
+
+    #results-header {
+      display: flex; align-items: center;
+      justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+
+    #results-title { font-size: 18px; font-weight: 700; }
+    #results-filename { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+    .results-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .action-btn {
+      padding: 8px 14px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      display: flex; align-items: center; gap: 6px; transition: background 0.1s;
+    }
+    .action-btn:hover { background: var(--bg); border-color: #ccc; }
+    .action-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .action-btn.primary:hover { background: var(--accent-hover); }
+
+    #results-columns {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 20px; align-items: start;
+    }
+
+    .result-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
+    }
+
+    .result-panel-header {
+      padding: 14px 18px; border-bottom: 1px solid var(--border-soft);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .result-panel-title {
+      font-size: 13px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .result-panel-badge {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; background: var(--accent-light);
+      color: var(--accent); padding: 2px 6px; border-radius: 4px;
+    }
+
+    .copy-panel-btn {
+      font-size: 12px; color: var(--text-muted);
+      background: none; border: none; cursor: pointer;
+      padding: 4px 8px; border-radius: 4px; transition: background 0.1s;
+    }
+    .copy-panel-btn:hover { background: var(--border-soft); color: var(--text); }
+
+    .result-panel-body { padding: 18px; max-height: 72vh; overflow-y: auto; }
+
+    #transcript-content {
+      font-size: 13px; line-height: 1.7; color: var(--text);
+      white-space: pre-wrap; font-family: inherit;
+    }
+
+    /* Markdown for analysis */
+    #analysis-content { font-size: 13px; line-height: 1.7; color: var(--text); }
+    #analysis-content h1 { font-size: 16px; font-weight: 700; margin: 20px 0 10px; }
+    #analysis-content h2 { font-size: 14px; font-weight: 700; margin: 16px 0 8px; }
+    #analysis-content h3 { font-size: 13px; font-weight: 600; margin: 12px 0 6px; }
+    #analysis-content h4 { font-size: 13px; font-weight: 600; margin: 10px 0 4px; }
+    #analysis-content p { margin-bottom: 10px; }
+    #analysis-content ul, #analysis-content ol { padding-left: 20px; margin-bottom: 10px; }
+    #analysis-content li { margin-bottom: 4px; }
+    #analysis-content blockquote {
+      border-left: 3px solid var(--accent); padding: 10px 14px;
+      margin: 12px 0; background: var(--accent-light);
+      border-radius: 0 6px 6px 0; font-size: 12px; color: var(--text-muted);
+    }
+    #analysis-content strong { font-weight: 600; color: var(--text); }
+    #analysis-content hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    #analysis-content a { color: var(--accent); }
+    #analysis-content code { background: var(--border-soft); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+
+    /* Settings modal */
+    #settings-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4); z-index: 100;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    #settings-modal.open { display: flex; }
+
+    #settings-dialog {
+      background: var(--surface); border-radius: 16px; padding: 28px;
+      width: 100%; max-width: 460px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+
+    #settings-dialog h2 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    #settings-dialog > p { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; line-height: 1.5; }
+
+    .field-group { margin-bottom: 18px; }
+    .field-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+
+    .field-group input {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      font-size: 13px; font-family: monospace;
+      color: var(--text); background: var(--bg); outline: none;
+      transition: border-color 0.15s;
+    }
+    .field-group input:focus { border-color: var(--accent); }
+
+    .field-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+    .settings-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+
+    @media (max-width: 768px) {
+      main { padding: 24px 16px; }
+      #results-columns { grid-template-columns: 1fr; }
+      .result-panel-body { max-height: 50vh; }
+      #drop-area { padding: 40px 24px; }
+    }
 
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-
-    /* ── Hamburger (desktop: hidden) ── */
-    #hamburger-btn {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      width: 36px;
-      height: 36px;
-      background: none;
-      border: none;
-      border-radius: var(--radius);
-      cursor: pointer;
-      color: var(--text);
-      flex-shrink: 0;
-      padding: 0;
-    }
-    #hamburger-btn:hover { background: var(--border-soft); }
-
-    /* ── Sidebar overlay (mobile: dim backdrop) ── */
-    #sidebar-overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.3);
-      z-index: 99;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.25s;
-    }
-    #sidebar-overlay.visible {
-      opacity: 1;
-      pointer-events: all;
-    }
-
-    /* ── Panel drag handle (mobile: visible) ── */
-    #panel-drag-handle {
-      display: none;
-      justify-content: center;
-      padding: 10px 0 4px;
-      flex-shrink: 0;
-    }
-    #panel-drag-handle::before {
-      content: '';
-      width: 36px;
-      height: 4px;
-      background: var(--border);
-      border-radius: 2px;
-    }
-
-    /* ── Mobile ── */
-    @media (max-width: 768px) {
-      #hamburger-btn { display: flex; }
-
-      #sidebar-overlay { display: block; }
-
-      #sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        height: 100%;
-        z-index: 100;
-        transform: translateX(-100%);
-        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: none;
-      }
-      #sidebar.open {
-        transform: translateX(0);
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.12);
-      }
-
-      #top-bar { padding: 12px 16px; }
-      #notes-area { padding: 20px 16px 0; }
-      #bottom-bar { padding: 12px 16px; }
-
-      /* Bottom sheet: overrides the desktop width-based slide */
-      #expansion-panel {
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        width: auto !important;
-        min-width: 0 !important;
-        height: 55vh;
-        max-height: 80vh;
-        border-left: none !important;
-        border-top: 1px solid var(--border);
-        border-radius: 16px 16px 0 0;
-        transform: translateY(100%);
-        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        z-index: 50;
-        box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.08);
-      }
-      #expansion-panel.open {
-        transform: translateY(0);
-      }
-
-      #panel-drag-handle { display: flex; }
-
-      /* 16px prevents iOS from auto-zooming on input focus */
-      .pull-textarea { font-size: 16px; min-height: 80px; }
-      #contact-input { font-size: 16px; }
-    }
   </style>
 </head>
 <body>
 
-<div id="sidebar-overlay" onclick="closeSidebar()"></div>
-
-<aside id="sidebar">
-  <div id="sidebar-header">
-    <h1>PULL Notes</h1>
-    <p>Sales call framework</p>
+<header>
+  <div class="header-left">
+    <span class="header-title">PULL Call Analyzer</span>
+    <span class="header-subtitle">— Rob Snyder's PULL Framework</span>
   </div>
-  <button id="new-call-btn" onclick="newCall()">
-    <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    New call
-  </button>
-  <div id="call-list"></div>
-</aside>
-
-<div id="main">
-
-  <div id="empty-state">
-    <svg width="40" height="40" fill="none" stroke="#d1d5db" stroke-width="1.5" viewBox="0 0 24 24">
-      <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+  <button id="settings-btn" onclick="openSettings()" title="API Settings">
+    <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
     </svg>
-    <h2>No call selected</h2>
-    <p>Start a new call to begin capturing notes with the PULL framework.</p>
-    <button id="start-btn" onclick="newCall()">Start a new call</button>
+  </button>
+</header>
+
+<main>
+
+  <!-- Upload Zone -->
+  <div id="upload-zone">
+    <div id="setup-warning">
+      API keys not configured. <a onclick="openSettings()">Add your keys</a> to get started.
+    </div>
+    <div id="error-msg"></div>
+    <div id="drop-area"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="handleDragOver(event)"
+         ondragleave="handleDragLeave(event)"
+         ondrop="handleDrop(event)">
+      <svg id="drop-icon" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <div id="drop-title">Drop your call recording here</div>
+      <div id="drop-subtitle">
+        Supports MP4, M4A, MP3, WAV, WebM and other audio/video formats<br>
+        Maximum file size: 25 MB
+      </div>
+      <button id="browse-btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+        Browse files
+      </button>
+    </div>
+    <input type="file" id="file-input"
+           accept="audio/*,video/mp4,.mp4,.m4a,.mp3,.wav,.webm,.ogg"
+           onchange="handleFileSelect(event)" />
   </div>
 
-  <div id="call-view">
-    <div id="top-bar">
-      <button id="hamburger-btn" onclick="openSidebar()" aria-label="Open call list">
-        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-      </button>
-      <input id="contact-input" type="text" placeholder="Contact name or company" oninput="saveCurrentCall()" />
-      <input id="date-input" type="date" oninput="saveCurrentCall()" />
-      <span id="autosave-indicator">Saved</span>
-    </div>
-
-    <div id="content-wrapper">
-      <div id="notes-area">
-
-        <div class="pull-section">
-          <div class="section-label">
-            <span class="section-letter">P</span>
-            <span class="section-title">Project</span>
-            <span class="section-hint">— What specific task are they prioritizing right now?</span>
-          </div>
-          <div class="textarea-wrapper">
-            <textarea id="field-project" class="pull-textarea"
-              placeholder="What is the project on their to-do list? Why is this being prioritized over everything else?"
-              oninput="saveCurrentCall()"
-              ondblclick="openPanel('project')"></textarea>
-            <span class="expand-hint">Double-click to expand →</span>
-          </div>
-        </div>
-
-        <div class="pull-section">
-          <div class="section-label">
-            <span class="section-letter">U</span>
-            <span class="section-title">Urgency</span>
-            <span class="section-hint">— Why does this need to happen now?</span>
-          </div>
-          <div class="textarea-wrapper">
-            <textarea id="field-urgency" class="pull-textarea"
-              placeholder="What makes this urgent or unavoidable today vs. a later quarter? Any deadlines, events, or consequences driving the timeline?"
-              oninput="saveCurrentCall()"
-              ondblclick="openPanel('urgency')"></textarea>
-            <span class="expand-hint">Double-click to expand →</span>
-          </div>
-        </div>
-
-        <div class="pull-section">
-          <div class="section-label">
-            <span class="section-letter">L</span>
-            <span class="section-title">List of Options</span>
-            <span class="section-hint">— What alternatives are they considering?</span>
-          </div>
-          <div class="textarea-wrapper">
-            <textarea id="field-options" class="pull-textarea"
-              placeholder="What else are they evaluating? Competitors, hiring, building in-house, doing nothing, other technologies?"
-              oninput="saveCurrentCall()"
-              ondblclick="openPanel('options')"></textarea>
-            <span class="expand-hint">Double-click to expand →</span>
-          </div>
-        </div>
-
-        <div class="pull-section">
-          <div class="section-label">
-            <span class="section-letter">L</span>
-            <span class="section-title">Limitations</span>
-            <span class="section-hint">— Why do those options fall short?</span>
-          </div>
-          <div class="textarea-wrapper">
-            <textarea id="field-limitations" class="pull-textarea"
-              placeholder="What prevents the existing options from solving the problem? What's the blocker that makes switching or buying necessary?"
-              oninput="saveCurrentCall()"
-              ondblclick="openPanel('limitations')"></textarea>
-            <span class="expand-hint">Double-click to expand →</span>
-          </div>
-        </div>
-
-        <div style="height: 8px;"></div>
-      </div>
-
-      <!-- Expansion panel -->
-      <div id="expansion-panel">
-        <div id="panel-drag-handle"></div>
-        <div id="panel-header">
-          <div id="panel-breadcrumb"></div>
-          <button id="panel-close-btn" onclick="closePanel()">
-            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
-        </div>
-        <div id="panel-body">
-          <div id="panel-level-label"></div>
-          <textarea id="panel-textarea"
-            oninput="savePanelContent()"
-            ondblclick="goDeeper()"></textarea>
-          <div class="panel-expand-hint">Double-click to expand further</div>
-        </div>
-      </div>
-    </div>
-
-    <div id="bottom-bar">
-      <button class="action-btn primary" onclick="copyToClipboard()">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-        Copy notes
-      </button>
-      <button class="action-btn" onclick="downloadNotes()">
-        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        Download .md
-      </button>
-      <span id="copy-feedback">Copied!</span>
+  <!-- Progress Zone -->
+  <div id="progress-zone">
+    <div id="progress-spinner"></div>
+    <div>
+      <div id="progress-label">Transcribing audio…</div>
+      <div id="progress-sub">This may take a minute for longer recordings</div>
     </div>
   </div>
 
+  <!-- Results Zone -->
+  <div id="results-zone">
+    <div id="results-header">
+      <div>
+        <div id="results-title">Analysis complete</div>
+        <div id="results-filename"></div>
+      </div>
+      <div class="results-actions">
+        <button class="action-btn" onclick="resetToUpload()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+          </svg>
+          Analyze another
+        </button>
+        <button class="action-btn primary" onclick="downloadAnalysis()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Download .md
+        </button>
+      </div>
+    </div>
+
+    <div id="results-columns">
+      <div class="result-panel">
+        <div class="result-panel-header">
+          <div class="result-panel-title">
+            Transcript
+            <span class="result-panel-badge">Whisper</span>
+          </div>
+          <button class="copy-panel-btn" onclick="copyText(currentTranscript, this)">Copy</button>
+        </div>
+        <div class="result-panel-body">
+          <pre id="transcript-content"></pre>
+        </div>
+      </div>
+
+      <div class="result-panel">
+        <div class="result-panel-header">
+          <div class="result-panel-title">
+            PULL Analysis
+            <span class="result-panel-badge">Claude</span>
+          </div>
+          <button class="copy-panel-btn" onclick="copyText(currentAnalysis, this)">Copy</button>
+        </div>
+        <div class="result-panel-body">
+          <div id="analysis-content"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Settings Modal -->
+<div id="settings-modal" onclick="handleModalBackdropClick(event)">
+  <div id="settings-dialog">
+    <h2>API Settings</h2>
+    <p>Keys are stored only in your browser's local storage and are sent directly to each API — never to any third party.</p>
+
+    <div class="field-group">
+      <label>OpenAI API Key — for Whisper transcription</label>
+      <input type="password" id="openai-key-input" placeholder="sk-..." autocomplete="off" />
+      <div class="field-hint">Create one at platform.openai.com → API keys</div>
+    </div>
+
+    <div class="field-group">
+      <label>Anthropic API Key — for PULL analysis</label>
+      <input type="password" id="anthropic-key-input" placeholder="sk-ant-..." autocomplete="off" />
+      <div class="field-hint">Create one at console.anthropic.com → API keys</div>
+    </div>
+
+    <div class="settings-actions">
+      <button class="action-btn" onclick="closeSettings()">Cancel</button>
+      <button class="action-btn primary" onclick="saveSettings()">Save keys</button>
+    </div>
+  </div>
 </div>
 
 <script>
-  const STORAGE_KEY = 'pull-notes-v2';
+const STORAGE_KEYS = {
+  openai: 'pull-analyzer-openai-key',
+  anthropic: 'pull-analyzer-anthropic-key',
+};
 
-  let calls = [];
-  let currentId = null;
-  let saveTimer = null;
+const PULL_SYSTEM_PROMPT = `# The PULL Framework
 
-  // Panel state
-  let panelSection = null;
-  let panelDepth = 0; // 0 = first level in panel (section.expansion)
+PULL is a mechanistic, predictive model of why buyers buy. It is a falsifiable claim about the conditions under which it would be weird if a purchase action didn't happen. In all other cases, it would be weird if a purchase action DID happen.
 
-  const SECTION_NAMES = {
-    project: 'Project',
-    urgency: 'Urgency',
-    options: 'List of Options',
-    limitations: 'Limitations',
+## PULL's core claim
+
+There are infinite things a buyer could do at any one point in time, but they can only do one thing. Even if they have pain points or are prioritizing something relevant, they can take action on it in infinite ways other than buying the seller's product. Almost all of the time, a buyer COULD buy — but it would be weird if they did. Occasionally, when they are prioritizing something relevant and don't have good-enough options so they are blocked from doing the thing, and the seller's product can unblock them — they would be weird NOT to buy.
+
+## PULL = One situation with four conditions
+
+### 1. Project (P)
+
+A project is a job-to-be-done that makes sense as an Asana or Trello project.
+
+**Project examples:**
+- "Minimize my time spent taking client meeting notes"
+- "Pass our SOC 2 audit"
+- "Stop losing 30% of trial users in the first week"
+- "Get the new pitch in front of every rep before next Monday's pipeline review"
+
+**A Project is NOT:**
+- A desire/need for a product ("we want a CRM by Q3") — projects are product-agnostic
+- A pain point ("we're frustrated with manual reporting") — not about action
+- An interest in the seller ("we'd love to learn more")
+- A goal or outcome ("we'd like to grow faster") — these are so-whats, not projects
+
+**The test:** Is there a P for which U and LL are true?
+
+### 2. Unavoidable (U)
+
+For PULL to exist, this specific Project must be one the buyer would be weird not to prioritize as their top priority right now. The structural logic of their situation makes it weird if they didn't.
+
+**Unavoidability comes from:**
+- Regulatory or legal forcing functions ("we'll fail the audit and pay fines")
+- Constraints-based business logic ("if we don't do this, nothing else matters")
+- Public commitments with deadlines ("I promised the board this ships in Q2")
+- Cascading dependencies ("we can't hire reps until we've nailed the pitch")
+- Personal / identity / emotions (career, identity, things the buyer can't walk away from)
+
+**Unavoidability is NOT:**
+- The buyer being interested or excited
+- The buyer agreeing the Project is "important"
+- The buyer saying "this would be great to fix"
+
+**The test:** Is there a specific reason that makes it weird if the buyer doesn't do this project now?
+
+### 3. List of options + Limitations (L+L)
+
+The buyer has considered ways to accomplish the specific Project — DIY, status quo, competitors, workarounds — and each has a specific Limitation that prevents it from getting them there. The List does not include what the seller is selling.
+
+**L+L requires:**
+- Specific options the buyer has actually considered or tried, for this Project
+- Specific reasons each one fails, for this Project
+
+**L+L is NOT:**
+- The buyer expressing general dissatisfaction
+- The seller listing competitors and explaining why they're worse
+
+**The test:** Can you name one or more options the buyer has considered, with one concrete failure mode each, all for this specific Project, in the buyer's words?
+
+### 4. Supply unblocks PULL
+
+The seller's pitch addresses the specific Project (not adjacent ones), directly resolves the named Limitations of the buyer's named options, and is the smallest version of supply that does this.
+
+## What a PULL action looks like
+
+**Purchase action (strict):** Asks for pricing, asks for the link/contract/order form, asks how to start.
+
+**Unprompted urgent next step (looser, still counts):** "Can you meet with my CTO tomorrow?", "I want to bring this to my team this week — when can you do it?"
+
+The buyer MUST initiate. If the seller suggested the next step first, even by hinting, it is NOT a PULL action.
+
+## Common false positives
+
+- **Lego-block PULL:** Three boxes checked but they belong to three different situations.
+- **Altitude inflation in P:** Strategic outcomes labeled as Project. If it can't go on a calendar this week, it's the wrong altitude.
+- **Importance masquerading as Unavoidability:** "Yes, this is important to us" is not Unavoidability.
+- **Dissatisfaction masquerading as L+L:** Generalized frustration does not generate PULL — named options with named failure modes do.
+- **Prompted next step masquerading as PULL action:** If the seller suggested it first, it doesn't count.
+
+---
+
+# PULL Call Analyzer Instructions
+
+You analyze sales calls using only the PULL framework. You are extremely brief, skeptical, and evidence-bound. Every claim is backed by a quote or by the conspicuous absence of one.
+
+## Required header
+
+Every analysis MUST begin with the following text, reproduced verbatim, before Section 1. Do not paraphrase it, abbreviate it, or skip it:
+
+> **This is a sales call analysis based on Rob Snyder's PULL Framework.** The PULL Framework states that buyers would be weird to buy UNLESS they have a **P**roject on their to-do list that's **U**navoidable right now, and their **L**ist of available options have **L**imitations.
+>
+> For more information on the PULL Framework, buy Rob's book ([The Power of PULL](https://www.amazon.com/Power-Pull-Customer-Successful-Founders/dp/1541705955)), read Rob's newsletter ([The Physics of Startups](https://thephysicsofstartups.substack.com/p/sales-problems-vs-product-market?utm_source=publication-search)), and/or [work with Rob](https://robsnyder.org/work-with-me).
+
+Print this header, then a horizontal rule, then begin Section 1. The header does not count against any section's word cap.
+
+## Analysis structure
+
+Read the entire transcript before writing anything. Do not analyze in passes — read once, then write once, with full context in mind.
+
+### Section 1 — Did they PULL?
+
+**Verdict:** "PULL action: YES" or "PULL action: NO." One line.
+
+**Evidence:** The exact quote (or the conspicuous absence). If YES, identify which flavor — purchase action or unprompted urgent next step. If the seller suggested the next step first, that is NOT a PULL action.
+
+Max 60 words after the verdict.
+
+### Section 2 — Was PULL visible in the call?
+
+**PULL candidates considered.** List every plausible Project that surfaced in the transcript, even briefly. One line each, in the buyer's voice, no product naming, at the actionable altitude.
+
+**Selected candidate.** Pick the most likely candidate and explain in one sentence why it beats the others.
+
+**The PULL framework.** Write P, then U, then LL for the selected candidate as bullet points. Embed direct quotes throughout — every claim needs a quote or a flagged absence. If the bullet points do not create one coherent story, that incoherence is the finding.
+
+After the narrative, one verdict line:
+- **PULL was visible** — P, U, and L+L all hold for the same situation
+- **Some PULL was visible** — one component is shaky; name which (P, U, or L+L) and how it falls short
+- **PULL wasn't visible** — no semblance of PULL from the transcript
+
+**What supply would have fit.** One sentence, seller-agnostic, naming the specific Limitation it resolves. If no PULL candidate, say "no fitting supply — there is no Project to unblock."
+
+### Section 3 — Seller performance
+
+**3a. How well did the seller look for PULL?**
+
+Best practice: ask why they took the call; if no PULL surfaces, ask what they're prioritizing/blocked on in the seller's domain; if still nothing, share what others have PULL about and provoke a reaction; last resort, ask if there's anything they're trying to buy right now. When PULL surfaces, ask questions to fill out P, U, and LL.
+
+**3b. Did the seller test PULL?**
+
+Looking = discovery questions. Testing = falsification move: asking the buyer questions designed to reveal absence of PULL ("is it OK if you don't solve this?", "why not just keep doing what you're doing?") — and watching the buyer argue for their own PULL. Or mirroring PULL back for the buyer to confirm or correct. Binary: did they test or not? Cite the most revealing quote. Max 80 words.
+
+**3c. Did the pitch fit PULL?**
+
+Four checks:
+1. Right Project — addressed the buyer's named Project, not a different one
+2. Resolved named Limitations — directly addressed the failure modes of the buyer's existing options
+3. Clear product category — is it clear what the product/service is?
+4. No extra words — only what unblocks PULL, no extraneous capabilities
+
+YES only if all four are true. Quote the pitch and the buyer's response. Max 100 words.
+
+**3d. What the seller is thinking.**
+
+Infer the theory of buying from the seller's behavior. Write it as one sentence in the seller's voice, backed by one quote. Max 50 words.
+
+The correct theory is: "PULL causes purchases. My job is to surface and test the buyer's PULL, then show how the smallest version of my supply unblocks it."
+
+**3e. Sales coaching.**
+- **Right level of buyer?** Senior enough to champion the purchase?
+- **Next step concrete?** Specific time booked on the call with specific agenda?
+- **Objections surfaced and addressed?** Or avoided?
+
+### Section 4 — What to do
+
+**4a. What seller should have done on this call.** 2–3 short bullets of what was most important and missing.
+
+**4b. What seller should do with this deal.** One paragraph, max 120 words. Be concrete. If no PULL was surfaced, that doesn't mean it wasn't there — consider whether to go back and ask one good question.
+
+**4c. What to do generally.**
+- **Right buyer, in PULL terms.** ICP as a coherent PULL situation — actionable Project, what makes it Unavoidable (chain of so-whats), what options they've tried, what the Limitation is. Single narrative, not four boxes. If this call's buyer didn't fit, say where they diverged.
+- **Right pitch, in PULL terms.** One sentence. Smallest possible supply that resolves the named Limitation.
+
+Max 120 words.
+
+## Output constraints
+
+- Always print the required header verbatim before Section 1.
+- Use the section numbering above. Do not invent new sections.
+- Quote the transcript directly. Never paraphrase quotes.
+- Never write "it appears," "it seems," "perhaps," or "might." Be definite. If no evidence, say "no evidence in transcript."
+- Do not name the seller's product or company. Do not name the buyer's company. Use they/them throughout.
+- Word caps in each section are real. Tighten until you hit them.`;
+
+let currentTranscript = '';
+let currentAnalysis = '';
+let currentFilename = '';
+
+// ── UI state ──
+
+function showUpload() {
+  document.getElementById('upload-zone').style.display = 'flex';
+  document.getElementById('progress-zone').style.display = 'none';
+  document.getElementById('results-zone').style.display = 'none';
+}
+
+function showProgress(label, sub) {
+  document.getElementById('upload-zone').style.display = 'none';
+  document.getElementById('progress-zone').style.display = 'flex';
+  document.getElementById('results-zone').style.display = 'none';
+  document.getElementById('progress-label').textContent = label;
+  document.getElementById('progress-sub').textContent = sub || '';
+}
+
+function showResults() {
+  document.getElementById('upload-zone').style.display = 'none';
+  document.getElementById('progress-zone').style.display = 'none';
+  document.getElementById('results-zone').style.display = 'flex';
+}
+
+function showError(msg) {
+  showUpload();
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function clearError() {
+  document.getElementById('error-msg').style.display = 'none';
+}
+
+function resetToUpload() {
+  currentTranscript = '';
+  currentAnalysis = '';
+  currentFilename = '';
+  document.getElementById('file-input').value = '';
+  clearError();
+  showUpload();
+}
+
+// ── Keys ──
+
+function getKeys() {
+  return {
+    openai: localStorage.getItem(STORAGE_KEYS.openai) || '',
+    anthropic: localStorage.getItem(STORAGE_KEYS.anthropic) || '',
   };
+}
 
-  const FIELD_IDS = {
-    project: 'field-project',
-    urgency: 'field-urgency',
-    options: 'field-options',
-    limitations: 'field-limitations',
-  };
+function keysConfigured() {
+  const { openai, anthropic } = getKeys();
+  return !!(openai && anthropic);
+}
 
-  // Follow-up prompts per section per depth; deeper levels fall back to the last entry
-  const PROMPTS = {
-    project: [
-      "Who owns this initiative? What does success look like for them? What's the business impact if it doesn't get done?",
-      "What internal blockers or stakeholders could slow this down? Who needs to sign off?",
-    ],
-    urgency: [
-      "What's the specific deadline or trigger event? What happens if this slips to next quarter? Budget cycle, board review, or external pressure?",
-      "How firm is the deadline — has it moved before? What would make it slip again?",
-    ],
-    options: [
-      "Have they trialed or seriously evaluated any of these? What was the outcome? How much time or money have they spent so far?",
-      "Which option are they currently leaning toward, and why? What would need to change for them to pick differently?",
-    ],
-    limitations: [
-      "Did they hit this wall themselves or hear about it from others? Have they tried any workarounds? What happened?",
-      "How severe is the limitation — an inconvenience or a show-stopper? What's the cost of living with it?",
-    ],
-  };
+function checkSetupWarning() {
+  document.getElementById('setup-warning').style.display = keysConfigured() ? 'none' : 'block';
+}
 
-  function getPrompt(section, depth) {
-    const list = PROMPTS[section] || [];
-    return list[Math.min(depth, list.length - 1)] || 'Go deeper — what else is worth capturing?';
+// ── Settings modal ──
+
+function openSettings() {
+  const { openai, anthropic } = getKeys();
+  document.getElementById('openai-key-input').value = openai;
+  document.getElementById('anthropic-key-input').value = anthropic;
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+function saveSettings() {
+  const openai = document.getElementById('openai-key-input').value.trim();
+  const anthropic = document.getElementById('anthropic-key-input').value.trim();
+  if (openai) localStorage.setItem(STORAGE_KEYS.openai, openai);
+  else localStorage.removeItem(STORAGE_KEYS.openai);
+  if (anthropic) localStorage.setItem(STORAGE_KEYS.anthropic, anthropic);
+  else localStorage.removeItem(STORAGE_KEYS.anthropic);
+  closeSettings();
+  checkSetupWarning();
+}
+
+function handleModalBackdropClick(e) {
+  if (e.target === document.getElementById('settings-modal')) closeSettings();
+}
+
+// ── File handling ──
+
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-area').classList.add('drag-over');
+}
+
+function handleDragLeave() {
+  document.getElementById('drop-area').classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-area').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processFile(file);
+}
+
+async function processFile(file) {
+  clearError();
+
+  if (!keysConfigured()) {
+    openSettings();
+    return;
   }
 
-  // ── Storage ──
-
-  function loadFromStorage() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      calls = raw ? JSON.parse(raw) : [];
-    } catch { calls = []; }
-
-    // Migrate v1 flat format
-    if (calls.length === 0) {
-      try {
-        const old = JSON.parse(localStorage.getItem('pull-notes-calls') || '[]');
-        if (old.length) {
-          calls = old.map(c => ({
-            id: c.id,
-            contact: c.contact || '',
-            date: c.date || '',
-            sections: {
-              project:     { text: c.project || '', expansion: null },
-              urgency:     { text: c.urgency || '', expansion: null },
-              options:     { text: c.options || '', expansion: null },
-              limitations: { text: c.limitations || '', expansion: null },
-            },
-          }));
-          saveToStorage();
-        }
-      } catch {}
-    }
+  const MB = 1024 * 1024;
+  if (file.size > 25 * MB) {
+    showError(`File too large (${(file.size / MB).toFixed(1)} MB). Whisper's limit is 25 MB. Try trimming the recording or extracting just the audio track.`);
+    return;
   }
 
-  function saveToStorage() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(calls));
+  currentFilename = file.name;
+  const { openai, anthropic } = getKeys();
+
+  try {
+    showProgress('Transcribing audio…', 'Sending to OpenAI Whisper — this may take a minute for longer recordings.');
+    currentTranscript = await transcribeAudio(file, openai);
+
+    showProgress('Analyzing with PULL framework…', 'Sending transcript to Claude — usually 20–40 seconds.');
+    currentAnalysis = await analyzePull(currentTranscript, anthropic);
+
+    document.getElementById('results-filename').textContent = file.name;
+    document.getElementById('transcript-content').textContent = currentTranscript;
+    document.getElementById('analysis-content').innerHTML = marked.parse(currentAnalysis);
+    showResults();
+
+  } catch (err) {
+    showError(err.message || 'Something went wrong. Check your API keys and try again.');
+  }
+}
+
+// ── API calls ──
+
+async function transcribeAudio(file, apiKey) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('model', 'whisper-1');
+  formData.append('response_format', 'text');
+
+  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}` },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Transcription failed: ${err.error?.message || res.statusText}`);
   }
 
-  function getCurrentCall() {
-    return calls.find(c => c.id === currentId) || null;
+  return await res.text();
+}
+
+async function analyzePull(transcript, apiKey) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      system: PULL_SYSTEM_PROMPT,
+      messages: [{
+        role: 'user',
+        content: `Please analyze this sales call transcript using the PULL framework:\n\n${transcript}`,
+      }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`Analysis failed: ${err.error?.message || res.statusText}`);
   }
 
-  function generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-  }
+  const data = await res.json();
+  return data.content[0].text;
+}
 
-  function today() {
-    return new Date().toISOString().slice(0, 10);
-  }
+// ── Export / copy ──
 
-  function formatDate(iso) {
-    if (!iso) return '';
-    const [y, m, d] = iso.split('-');
-    return `${m}/${d}/${y}`;
-  }
+async function copyText(text, btn) {
+  await navigator.clipboard.writeText(text);
+  const orig = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => { btn.textContent = orig; }, 2000);
+}
 
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
+function downloadAnalysis() {
+  const slug = currentFilename.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const date = new Date().toISOString().slice(0, 10);
+  const content = `# PULL Analysis — ${currentFilename}\n_${date}_\n\n---\n\n## Transcript\n\n${currentTranscript}\n\n---\n\n## PULL Analysis\n\n${currentAnalysis}`;
+  const blob = new Blob([content], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pull-analysis-${slug}-${date}.md`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
-  // ── Nested expansion helpers ──
-  // panelDepth 0 → section.expansion (one hop)
-  // panelDepth 1 → section.expansion.expansion (two hops)
-
-  function getNode(section, depth) {
-    const call = getCurrentCall();
-    if (!call) return null;
-    let node = call.sections[section];
-    for (let i = 0; i <= depth; i++) {
-      if (!node.expansion) return null;
-      node = node.expansion;
-    }
-    return node;
-  }
-
-  function ensureNode(section, depth) {
-    const call = getCurrentCall();
-    if (!call) return null;
-    let node = call.sections[section];
-    for (let i = 0; i <= depth; i++) {
-      if (!node.expansion) node.expansion = { text: '', expansion: null };
-      node = node.expansion;
-    }
-    return node;
-  }
-
-  // ── Call management ──
-
-  function newCall() {
-    const call = {
-      id: generateId(),
-      contact: '',
-      date: today(),
-      sections: {
-        project:     { text: '', expansion: null },
-        urgency:     { text: '', expansion: null },
-        options:     { text: '', expansion: null },
-        limitations: { text: '', expansion: null },
-      },
-    };
-    calls.unshift(call);
-    saveToStorage();
-    renderSidebar();
-    openCall(call.id);
-    document.getElementById('contact-input').focus();
-  }
-
-  function openCall(id) {
-    currentId = id;
-    closePanel();
-    const call = calls.find(c => c.id === id);
-    if (!call) return;
-
-    document.getElementById('empty-state').style.display = 'none';
-    document.getElementById('call-view').style.display = 'flex';
-
-    document.getElementById('contact-input').value = call.contact;
-    document.getElementById('date-input').value = call.date;
-    document.getElementById('field-project').value = call.sections.project.text;
-    document.getElementById('field-urgency').value = call.sections.urgency.text;
-    document.getElementById('field-options').value = call.sections.options.text;
-    document.getElementById('field-limitations').value = call.sections.limitations.text;
-
-    closeSidebar();
-    setAutosave('Saved');
-    renderSidebar();
-  }
-
-  function saveCurrentCall() {
-    if (!currentId) return;
-    const call = getCurrentCall();
-    if (!call) return;
-
-    call.contact = document.getElementById('contact-input').value;
-    call.date = document.getElementById('date-input').value;
-    call.sections.project.text = document.getElementById('field-project').value;
-    call.sections.urgency.text = document.getElementById('field-urgency').value;
-    call.sections.options.text = document.getElementById('field-options').value;
-    call.sections.limitations.text = document.getElementById('field-limitations').value;
-
-    saveToStorage();
-    setAutosave('Saving…');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { setAutosave('Saved'); renderSidebar(); }, 600);
-  }
-
-  function setAutosave(text) {
-    document.getElementById('autosave-indicator').textContent = text;
-  }
-
-  function deleteCall(id, e) {
-    e.stopPropagation();
-    calls = calls.filter(c => c.id !== id);
-    saveToStorage();
-    if (currentId === id) {
-      currentId = null;
-      closePanel();
-      document.getElementById('call-view').style.display = 'none';
-      document.getElementById('empty-state').style.display = 'flex';
-    }
-    renderSidebar();
-  }
-
-  function renderSidebar() {
-    const list = document.getElementById('call-list');
-    if (!calls.length) {
-      list.innerHTML = '<div style="padding:12px 10px;font-size:12px;color:var(--text-subtle);">No saved calls yet.</div>';
-      return;
-    }
-    list.innerHTML = calls.map(c => `
-      <div class="call-item ${c.id === currentId ? 'active' : ''}" onclick="openCall('${c.id}')">
-        <div class="call-item-name">${escHtml(c.contact) || 'Unnamed call'}</div>
-        <div class="call-item-date">${formatDate(c.date) || '—'}</div>
-        <button class="call-item-delete" onclick="deleteCall('${c.id}',event)" title="Delete">
-          <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
-        </button>
-      </div>`).join('');
-  }
-
-  // ── Panel ──
-
-  function openPanel(section) {
-    panelSection = section;
-    panelDepth = 0;
-    ensureNode(section, 0);
-    renderPanel();
-    document.getElementById('expansion-panel').classList.add('open');
-    highlightActiveTextarea();
-    setTimeout(() => document.getElementById('panel-textarea').focus(), 260);
-  }
-
-  function closePanel() {
-    document.getElementById('expansion-panel').classList.remove('open');
-    panelSection = null;
-    panelDepth = 0;
-    highlightActiveTextarea();
-  }
-
-  function goDeeper() {
-    if (!panelSection) return;
-    panelDepth++;
-    ensureNode(panelSection, panelDepth);
-    renderPanel();
-    document.getElementById('panel-textarea').focus();
-  }
-
-  function navigateTo(depth) {
-    if (!panelSection) return;
-    panelDepth = depth;
-    renderPanel();
-    document.getElementById('panel-textarea').focus();
-  }
-
-  function savePanelContent() {
-    if (!panelSection) return;
-    const node = getNode(panelSection, panelDepth);
-    if (!node) return;
-    node.text = document.getElementById('panel-textarea').value;
-    saveToStorage();
-    setAutosave('Saving…');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => setAutosave('Saved'), 600);
-  }
-
-  function renderPanel() {
-    if (!panelSection) return;
-
-    const name = SECTION_NAMES[panelSection];
-
-    // Breadcrumb: "Project › L1 › L2" where all but last are clickable
-    const parts = [`<span class="bc-link" onclick="closePanel()">${escHtml(name)}</span>`];
-    for (let i = 0; i <= panelDepth; i++) {
-      parts.push(`<span class="bc-sep">›</span>`);
-      if (i === panelDepth) {
-        parts.push(`<span class="bc-current">L${i + 1}</span>`);
-      } else {
-        parts.push(`<span class="bc-link" onclick="navigateTo(${i})">L${i + 1}</span>`);
-      }
-    }
-    document.getElementById('panel-breadcrumb').innerHTML = parts.join('');
-
-    document.getElementById('panel-level-label').textContent =
-      `${name} · Level ${panelDepth + 1}`;
-
-    const node = getNode(panelSection, panelDepth);
-    const ta = document.getElementById('panel-textarea');
-    ta.value = node ? node.text : '';
-    ta.placeholder = getPrompt(panelSection, panelDepth);
-  }
-
-  function highlightActiveTextarea() {
-    document.querySelectorAll('.pull-textarea').forEach(el => el.classList.remove('panel-active'));
-    if (!panelSection) return;
-    const el = document.getElementById(FIELD_IDS[panelSection]);
-    if (el) el.classList.add('panel-active');
-  }
-
-  // ── Export ──
-
-  function expansionMd(node, sectionLabel, level) {
-    if (!node || !node.text) return '';
-    const hashes = '#'.repeat(Math.min(level + 2, 6));
-    const title = level === 1 ? `${sectionLabel} — Follow-up` : `${sectionLabel} — Level ${level}`;
-    let out = `\n${hashes} ${title}\n${node.text}`;
-    if (node.expansion) out += expansionMd(node.expansion, sectionLabel, level + 1);
-    return out;
-  }
-
-  function buildNotesMd() {
-    const call = getCurrentCall();
-    if (!call) return '';
-    const name = call.contact || 'Unnamed call';
-    const date = call.date ? formatDate(call.date) : '';
-    const s = call.sections;
-
-    let md = `# PULL Notes — ${name}${date ? ' · ' + date : ''}\n`;
-    for (const [key, label] of [
-      ['project', 'Project'],
-      ['urgency', 'Urgency'],
-      ['options', 'List of Options'],
-      ['limitations', 'Limitations'],
-    ]) {
-      md += `\n## ${label}\n${s[key].text || '(no notes)'}`;
-      if (s[key].expansion) md += expansionMd(s[key].expansion, label, 1);
-    }
-    return md;
-  }
-
-  function copyToClipboard() {
-    navigator.clipboard.writeText(buildNotesMd()).then(() => {
-      const el = document.getElementById('copy-feedback');
-      el.classList.add('show');
-      setTimeout(() => el.classList.remove('show'), 2000);
-    });
-  }
-
-  function downloadNotes() {
-    const call = getCurrentCall();
-    const slug = (call?.contact || 'pull-notes').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    const filename = `${slug}-${call?.date || today()}.md`;
-    const blob = new Blob([buildNotesMd()], { type: 'text/markdown' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  // ── Sidebar drawer (mobile) ──
-
-  function openSidebar() {
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('sidebar-overlay').classList.add('visible');
-  }
-
-  function closeSidebar() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebar-overlay').classList.remove('visible');
-  }
-
-  // ── Init ──
-  loadFromStorage();
-  renderSidebar();
-  if (calls.length > 0) openCall(calls[0].id);
+// ── Init ──
+checkSetupWarning();
 </script>
 </body>
 </html>
