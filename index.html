@@ -727,6 +727,7 @@ async function transcribeAudio(file, apiKey) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('model_id', 'scribe_v1');
+  formData.append('diarize', 'true');
 
   const res = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
     method: 'POST',
@@ -740,7 +741,35 @@ async function transcribeAudio(file, apiKey) {
   }
 
   const data = await res.json();
-  return data.text;
+  return data.words?.length ? formatDiarizedTranscript(data.words) : data.text;
+}
+
+function formatDiarizedTranscript(words) {
+  const labelMap = {};
+  let speakerCount = 0;
+
+  const segments = [];
+  let currentSpeaker = null;
+  let currentText = '';
+
+  for (const word of words) {
+    if (word.type === 'audio_event') continue;
+    const speaker = word.speaker_id ?? 'unknown';
+
+    if (speaker !== currentSpeaker) {
+      if (currentText.trim()) segments.push({ speaker: currentSpeaker, text: currentText.trim() });
+      currentSpeaker = speaker;
+      currentText = word.text;
+    } else {
+      currentText += word.text;
+    }
+  }
+  if (currentText.trim()) segments.push({ speaker: currentSpeaker, text: currentText.trim() });
+
+  return segments.map(seg => {
+    if (!labelMap[seg.speaker]) labelMap[seg.speaker] = `Speaker ${++speakerCount}`;
+    return `${labelMap[seg.speaker]}: ${seg.text}`;
+  }).join('\n\n');
 }
 
 async function analyzePull(transcript, apiKey) {
