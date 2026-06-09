@@ -725,7 +725,7 @@ async function processFile(file) {
 
 async function transcribeAudio(file, apiKey) {
   const formData = new FormData();
-  formData.append('audio', file);
+  formData.append('file', file);
   formData.append('model_id', 'scribe_v1');
 
   const res = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
