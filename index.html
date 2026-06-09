@@ -295,8 +295,7 @@
       </svg>
       <div id="drop-title">Drop your call recording here</div>
       <div id="drop-subtitle">
-        Supports MP4, M4A, MP3, WAV, WebM and other audio/video formats<br>
-        Maximum file size: 25 MB
+        Supports MP4, M4A, MP3, WAV, WebM and other audio/video formats
       </div>
       <button id="browse-btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
         Browse files
@@ -347,7 +346,7 @@
         <div class="result-panel-header">
           <div class="result-panel-title">
             Transcript
-            <span class="result-panel-badge">Whisper</span>
+            <span class="result-panel-badge">ElevenLabs</span>
           </div>
           <button class="copy-panel-btn" onclick="copyText(currentTranscript, this)">Copy</button>
         </div>
@@ -380,9 +379,9 @@
     <p>Keys are stored only in your browser's local storage and are sent directly to each API — never to any third party.</p>
 
     <div class="field-group">
-      <label>OpenAI API Key — for Whisper transcription</label>
-      <input type="password" id="openai-key-input" placeholder="sk-..." autocomplete="off" />
-      <div class="field-hint">Create one at platform.openai.com → API keys</div>
+      <label>ElevenLabs API Key — for transcription</label>
+      <input type="password" id="elevenlabs-key-input" placeholder="sk_..." autocomplete="off" />
+      <div class="field-hint">Create one at elevenlabs.io → Profile → API Keys. Needs Speech to Text → Access only.</div>
     </div>
 
     <div class="field-group">
@@ -400,7 +399,7 @@
 
 <script>
 const STORAGE_KEYS = {
-  openai: 'pull-analyzer-openai-key',
+  elevenlabs: 'pull-analyzer-elevenlabs-key',
   anthropic: 'pull-analyzer-anthropic-key',
 };
 
@@ -629,14 +628,14 @@ function resetToUpload() {
 
 function getKeys() {
   return {
-    openai: localStorage.getItem(STORAGE_KEYS.openai) || '',
+    elevenlabs: localStorage.getItem(STORAGE_KEYS.elevenlabs) || '',
     anthropic: localStorage.getItem(STORAGE_KEYS.anthropic) || '',
   };
 }
 
 function keysConfigured() {
-  const { openai, anthropic } = getKeys();
-  return !!(openai && anthropic);
+  const { elevenlabs, anthropic } = getKeys();
+  return !!(elevenlabs && anthropic);
 }
 
 function checkSetupWarning() {
@@ -646,8 +645,8 @@ function checkSetupWarning() {
 // ── Settings modal ──
 
 function openSettings() {
-  const { openai, anthropic } = getKeys();
-  document.getElementById('openai-key-input').value = openai;
+  const { elevenlabs, anthropic } = getKeys();
+  document.getElementById('elevenlabs-key-input').value = elevenlabs;
   document.getElementById('anthropic-key-input').value = anthropic;
   document.getElementById('settings-modal').classList.add('open');
 }
@@ -657,10 +656,10 @@ function closeSettings() {
 }
 
 function saveSettings() {
-  const openai = document.getElementById('openai-key-input').value.trim();
+  const elevenlabs = document.getElementById('elevenlabs-key-input').value.trim();
   const anthropic = document.getElementById('anthropic-key-input').value.trim();
-  if (openai) localStorage.setItem(STORAGE_KEYS.openai, openai);
-  else localStorage.removeItem(STORAGE_KEYS.openai);
+  if (elevenlabs) localStorage.setItem(STORAGE_KEYS.elevenlabs, elevenlabs);
+  else localStorage.removeItem(STORAGE_KEYS.elevenlabs);
   if (anthropic) localStorage.setItem(STORAGE_KEYS.anthropic, anthropic);
   else localStorage.removeItem(STORAGE_KEYS.anthropic);
   closeSettings();
@@ -702,18 +701,12 @@ async function processFile(file) {
     return;
   }
 
-  const MB = 1024 * 1024;
-  if (file.size > 25 * MB) {
-    showError(`File too large (${(file.size / MB).toFixed(1)} MB). Whisper's limit is 25 MB. Try trimming the recording or extracting just the audio track.`);
-    return;
-  }
-
   currentFilename = file.name;
-  const { openai, anthropic } = getKeys();
+  const { elevenlabs, anthropic } = getKeys();
 
   try {
-    showProgress('Transcribing audio…', 'Sending to OpenAI Whisper — this may take a minute for longer recordings.');
-    currentTranscript = await transcribeAudio(file, openai);
+    showProgress('Transcribing audio…', 'Sending to ElevenLabs — this may take a minute for longer recordings.');
+    currentTranscript = await transcribeAudio(file, elevenlabs);
 
     showProgress('Analyzing with PULL framework…', 'Sending transcript to Claude — usually 20–40 seconds.');
     currentAnalysis = await analyzePull(currentTranscript, anthropic);
@@ -732,22 +725,22 @@ async function processFile(file) {
 
 async function transcribeAudio(file, apiKey) {
   const formData = new FormData();
-  formData.append('file', file);
-  formData.append('model', 'whisper-1');
-  formData.append('response_format', 'text');
+  formData.append('audio', file);
+  formData.append('model_id', 'scribe_v1');
 
-  const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+  const res = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}` },
+    headers: { 'xi-api-key': apiKey },
     body: formData,
   });
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(`Transcription failed: ${err.error?.message || res.statusText}`);
+    throw new Error(`Transcription failed: ${err.detail?.message || err.detail || res.statusText}`);
   }
 
-  return await res.text();
+  const data = await res.json();
+  return data.text;
 }
 
 async function analyzePull(transcript, apiKey) {
