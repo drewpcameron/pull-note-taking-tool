@@ -160,6 +160,26 @@
       display: grid; grid-template-columns: 1fr 1fr;
       gap: 20px; align-items: start;
     }
+    #results-columns.single-column { grid-template-columns: 1fr; }
+
+    .toggle-row {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      margin-top: 16px; font-size: 13px; color: var(--text-muted);
+    }
+    .toggle-switch {
+      position: relative; display: inline-block; width: 38px; height: 22px; flex-shrink: 0;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--border); border-radius: 999px; transition: 0.15s;
+    }
+    .toggle-slider::before {
+      content: ""; position: absolute; height: 16px; width: 16px;
+      left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: 0.15s;
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(16px); }
 
     .result-panel {
       background: var(--surface); border: 1px solid var(--border);
@@ -248,11 +268,32 @@
 
     .settings-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
 
+    .call-type-card {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 10px;
+      padding: 24px 20px; background: var(--surface);
+      border: 1.5px solid var(--border); border-radius: 12px;
+      cursor: pointer; text-align: left;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .call-type-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.1);
+      transform: translateY(-1px);
+    }
+    .call-type-icon {
+      width: 40px; height: 40px;
+      background: var(--accent-light); color: var(--accent);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    }
+    .call-type-label { font-size: 15px; font-weight: 700; }
+    .call-type-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
     @media (max-width: 768px) {
       main { padding: 24px 16px; }
       #results-columns { grid-template-columns: 1fr; }
       .result-panel-body { max-height: 50vh; }
       #drop-area { padding: 40px 24px; }
+      #call-type-zone > div:nth-child(2) { grid-template-columns: 1fr; }
     }
 
     ::-webkit-scrollbar { width: 6px; }
@@ -304,6 +345,42 @@
     <input type="file" id="file-input"
            accept="audio/*,video/mp4,.mp4,.m4a,.mp3,.wav,.webm,.ogg"
            onchange="handleFileSelect(event)" />
+    <div class="toggle-row">
+      <label class="toggle-switch">
+        <input type="checkbox" id="pull-analysis-toggle" checked onchange="togglePullAnalysis(this.checked)" />
+        <span class="toggle-slider"></span>
+      </label>
+      <span>Run PULL analysis (uses Claude)</span>
+    </div>
+  </div>
+
+  <!-- Call Type Zone -->
+  <div id="call-type-zone" style="display:none; flex-direction:column; align-items:center; justify-content:center; min-height:400px; gap:24px;">
+    <div style="text-align:center;">
+      <div style="font-size:16px; font-weight:700; margin-bottom:6px;">What kind of call is this?</div>
+      <div id="picker-filename" style="font-size:13px; color:var(--text-muted);"></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; width:100%; max-width:560px;">
+      <button class="call-type-card" onclick="selectCallType('discovery')">
+        <div class="call-type-icon">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+          </svg>
+        </div>
+        <div class="call-type-label">Discovery Call</div>
+        <div class="call-type-desc">First meeting — goal is to uncover whether a real PULL situation exists</div>
+      </button>
+      <button class="call-type-card" onclick="selectCallType('sales')">
+        <div class="call-type-icon">
+          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/>
+          </svg>
+        </div>
+        <div class="call-type-label">Sales Call</div>
+        <div class="call-type-desc">Pitch or demo — goal is to fit supply to PULL and drive a purchase action</div>
+      </button>
+    </div>
+    <button class="action-btn" onclick="resetToUpload()" style="font-size:12px;">← Choose a different file</button>
   </div>
 
   <!-- Progress Zone -->
@@ -330,7 +407,7 @@
           </svg>
           Analyze another
         </button>
-        <button class="action-btn primary" onclick="downloadAnalysis()">
+        <button id="download-btn" class="action-btn primary" onclick="downloadAnalysis()">
           <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/>
@@ -355,7 +432,7 @@
         </div>
       </div>
 
-      <div class="result-panel">
+      <div id="analysis-panel" class="result-panel">
         <div class="result-panel-header">
           <div class="result-panel-title">
             PULL Analysis
@@ -403,7 +480,144 @@ const STORAGE_KEYS = {
   anthropic: 'pull-analyzer-anthropic-key',
 };
 
-const PULL_SYSTEM_PROMPT = `# The PULL Framework
+const PULL_SYSTEM_PROMPT_DISCOVERY = `# The PULL Framework
+
+PULL is a mechanistic, predictive model of why buyers buy. It is a falsifiable claim about the conditions under which it would be weird if a purchase action didn't happen. In all other cases, it would be weird if a purchase action DID happen.
+
+## PULL's core claim
+
+There are infinite things a buyer could do at any one point in time, but they can only do one thing. Even if they have pain points or are prioritizing something relevant, they can take action on it in infinite ways other than buying the seller's product. Almost all of the time, a buyer COULD buy — but it would be weird if they did. Occasionally, when they are prioritizing something relevant and don't have good-enough options so they are blocked from doing the thing, and the seller's product can unblock them — they would be weird NOT to buy.
+
+## PULL = One situation with four conditions
+
+### 1. Project (P)
+
+A project is a job-to-be-done that makes sense as an Asana or Trello project. Product-agnostic — it must exist independent of solutions. Not a pain point, not a goal, not an interest in the seller.
+
+### 2. Unavoidable (U)
+
+This specific Project must be one the buyer would be weird not to prioritize right now. Unavoidability is structural — a consequence of not doing it. "Yes, this is important" is not Unavoidability.
+
+### 3. List of options + Limitations (L+L)
+
+The buyer has considered ways to accomplish the Project — DIY, status quo, competitors — and each has a specific Limitation. Requires named options and named failure modes, all relative to the specified P.
+
+### 4. Supply unblocks PULL
+
+The pitch addresses the specific Project, directly resolves the named Limitations, and is the smallest version of supply that does this.
+
+## What a PULL action looks like
+
+Purchase action (strict): asks for pricing, contract, or how to start. Unprompted urgent next step (looser): "Can you meet my CTO tomorrow?" The buyer must initiate — if the seller suggested it first, it does not count.
+
+## Common false positives
+
+- **Lego-block PULL:** Components from three different situations assembled into one.
+- **Altitude inflation in P:** Strategic outcomes labeled as Project. If it can't go on a calendar this week, wrong altitude.
+- **Importance masquerading as Unavoidability:** Structure forces Unavoidability, not sentiment.
+- **Dissatisfaction masquerading as L+L:** Named options with named failure modes — not general frustration.
+
+---
+
+# Discovery Call Analyzer Instructions
+
+You analyze discovery calls using only the PULL framework. A discovery call's purpose is to uncover whether a real PULL situation exists — not to pitch. You are brief, skeptical, and evidence-bound. Every claim is backed by a quote or the conspicuous absence of one.
+
+## Required header
+
+Every analysis MUST begin with the following text, reproduced verbatim, before Section 1:
+
+> **This is a sales call analysis based on Rob Snyder's PULL Framework.** The PULL Framework states that buyers would be weird to buy UNLESS they have a **P**roject on their to-do list that's **U**navoidable right now, and their **L**ist of available options have **L**imitations.
+>
+> For more information on the PULL Framework, buy Rob's book ([The Power of PULL](https://www.amazon.com/Power-Pull-Customer-Successful-Founders/dp/1541705955)), read Rob's newsletter ([The Physics of Startups](https://thephysicsofstartups.substack.com/p/sales-problems-vs-product-market?utm_source=publication-search)), and/or [work with Rob](https://robsnyder.org/work-with-me).
+
+Print this header, then a horizontal rule, then begin Section 1.
+
+## Analysis structure
+
+Read the entire transcript before writing anything.
+
+### Section 1 — Did PULL surface?
+
+**Verdict:** "PULL surfaced: FULLY" — all four components (P, U, LL) were clearly established with specificity. "PULL surfaced: PARTIALLY" — some components emerged but at least one is shaky or missing. "PULL surfaced: NO" — no coherent PULL situation was established.
+
+One line verdict. Then list which components were clearly established (P ✓, U ✓, LL ✗, etc.) and name the weakest link.
+
+Max 60 words after the verdict.
+
+### Section 2 — What PULL was present?
+
+**PULL candidates considered.** List every plausible Project that surfaced in the transcript, even briefly. One line each, in the buyer's voice, no product naming, at the actionable altitude.
+
+**Selected candidate.** Pick the most likely candidate and explain in one sentence why it beats the others.
+
+**The PULL framework.** Write P, then U, then LL for the selected candidate as bullet points. Embed direct quotes throughout. Note explicitly where the seller probed for depth and where they accepted a surface answer and moved on.
+
+After the narrative, one verdict line:
+- **PULL was visible** — P, U, and L+L all hold for the same situation
+- **Some PULL was visible** — one component is shaky; name which and how it falls short
+- **PULL wasn't visible** — no semblance of PULL from the transcript
+
+**What supply would fit.** One sentence, seller-agnostic, naming the specific Limitation it resolves. If no PULL candidate, say "no fitting supply — there is no Project to unblock."
+
+### Section 3 — Discovery performance
+
+**3a. How well did the seller open for PULL?**
+
+Did the seller create space for PULL to surface before pitching? Best practice: ask why they took the call, what they're hoping to get out of it, then let the buyer talk. A seller who jumps straight to a pitch or company overview before the buyer has spoken has already failed this. Cite the opening sequence. Max 60 words.
+
+**3b. Did the seller go deep on each PULL component?**
+
+For each component that surfaced, did the seller probe for specificity? Good discovery gets named deadlines, named options, named failure modes — not vague agreement.
+
+- **P:** Did the seller nail down a specific actionable project, not just a pain or goal?
+- **U:** Did the seller ask why now vs. next quarter? Did they get a structural reason or just "yes it's important"?
+- **LL:** Did the seller name specific alternatives the buyer has tried or considered, and get the specific failure mode of each?
+
+One sentence verdict per component with a supporting quote or flagged absence. Max 30 words per component.
+
+**3c. Did the seller test PULL?**
+
+Testing = asking the negative ("is it OK if you don't solve this?") or mirroring PULL back for the buyer to confirm or correct. Binary: yes or no. Cite the most revealing quote. Max 80 words.
+
+**3d. What the seller is thinking.**
+
+Infer the theory of discovery from the seller's behavior. Write it as one sentence in the seller's voice, backed by one quote. Max 50 words.
+
+The correct theory is: "My job is to find out if this buyer has PULL. If they do, I need to understand P, U, and LL precisely enough to pitch the smallest supply that unblocks them."
+
+**3e. Discovery logistics.**
+- **Right level of buyer?** Senior enough to know the real PULL?
+- **Next meeting booked?** With a specific agenda tied to what was learned?
+- **PULL summary?** Did the seller reflect the buyer's PULL back to confirm understanding before ending the call?
+
+### Section 4 — What to do
+
+**4a. What should have been done on this call.** 2–3 short bullets of the highest-leverage missing moves.
+
+**4b. How to prepare for the next meeting.** What gaps in PULL need to be filled? What should be tested? What questions should be asked? One paragraph, max 120 words. If no next meeting was booked, address that first.
+
+**4c. Is this buyer worth pursuing?** Based on the PULL signals from this call, is there a real deal here? Does this buyer fit the ICP in PULL terms? What would need to be true for this to close? Max 80 words.
+
+### Section 5 — Next call improvements
+
+Three concrete things the seller should do differently on the very next discovery call. Not general principles — specific behaviors the seller can follow in real time. Each: one sentence of what to do, one sentence of why, derived from the gaps in this call.
+
+Format:
+- **[Behavior].** [Why it matters based on what happened in this call.]
+
+Max 120 words total.
+
+## Output constraints
+
+- Always print the required header verbatim before Section 1.
+- Use the section numbering above. Do not invent new sections.
+- Quote the transcript directly. Never paraphrase quotes.
+- Never write "it appears," "it seems," "perhaps," or "might." Be definite. If no evidence, say "no evidence in transcript."
+- Do not name the seller's product or company. Do not name the buyer's company. Use they/them throughout.
+- Word caps in each section are real. Tighten until you hit them.`;
+
+const PULL_SYSTEM_PROMPT_SALES = `# The PULL Framework
 
 PULL is a mechanistic, predictive model of why buyers buy. It is a falsifiable claim about the conditions under which it would be weird if a purchase action didn't happen. In all other cases, it would be weird if a purchase action DID happen.
 
@@ -591,6 +805,13 @@ Focus on the highest-leverage gaps from Sections 3 and 4. If the seller never te
 let currentTranscript = '';
 let currentAnalysis = '';
 let currentFilename = '';
+let pendingFile = null;
+let callType = null;
+let pullAnalysisEnabled = true;
+
+function togglePullAnalysis(enabled) {
+  pullAnalysisEnabled = enabled;
+}
 
 // ── UI state ──
 
@@ -629,7 +850,10 @@ function resetToUpload() {
   currentTranscript = '';
   currentAnalysis = '';
   currentFilename = '';
+  pendingFile = null;
+  callType = null;
   document.getElementById('file-input').value = '';
+  document.getElementById('call-type-zone').style.display = 'none';
   clearError();
   showUpload();
 }
@@ -695,12 +919,34 @@ function handleDrop(e) {
   e.preventDefault();
   document.getElementById('drop-area').classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
-  if (file) processFile(file);
+  if (file) showCallTypePicker(file);
 }
 
 function handleFileSelect(e) {
   const file = e.target.files[0];
-  if (file) processFile(file);
+  if (file) showCallTypePicker(file);
+}
+
+function showCallTypePicker(file) {
+  clearError();
+  if (!keysConfigured()) { openSettings(); return; }
+  pendingFile = file;
+
+  if (!pullAnalysisEnabled) {
+    callType = null;
+    processFile(file);
+    return;
+  }
+
+  document.getElementById('picker-filename').textContent = file.name;
+  document.getElementById('upload-zone').style.display = 'none';
+  document.getElementById('call-type-zone').style.display = 'flex';
+}
+
+function selectCallType(type) {
+  callType = type;
+  document.getElementById('call-type-zone').style.display = 'none';
+  processFile(pendingFile);
 }
 
 async function processFile(file) {
@@ -718,12 +964,22 @@ async function processFile(file) {
     showProgress('Transcribing audio…', 'Sending to ElevenLabs — this may take a minute for longer recordings.');
     currentTranscript = await transcribeAudio(file, elevenlabs);
 
-    showProgress('Analyzing with PULL framework…', 'Sending transcript to Claude — usually 20–40 seconds.');
-    currentAnalysis = await analyzePull(currentTranscript, anthropic);
+    if (pullAnalysisEnabled) {
+      showProgress('Analyzing with PULL framework…', 'Sending transcript to Claude — usually 20–40 seconds.');
+      currentAnalysis = await analyzePull(currentTranscript, anthropic);
+      document.getElementById('results-title').textContent = callType === 'discovery' ? 'Discovery call analysis' : 'Sales call analysis';
+      document.getElementById('analysis-content').innerHTML = marked.parse(currentAnalysis);
+    } else {
+      currentAnalysis = '';
+      document.getElementById('results-title').textContent = 'Transcript';
+      document.getElementById('analysis-content').innerHTML = '';
+    }
 
+    document.getElementById('analysis-panel').style.display = pullAnalysisEnabled ? '' : 'none';
+    document.getElementById('download-btn').style.display = pullAnalysisEnabled ? '' : 'none';
+    document.getElementById('results-columns').classList.toggle('single-column', !pullAnalysisEnabled);
     document.getElementById('results-filename').textContent = file.name;
     document.getElementById('transcript-content').textContent = currentTranscript;
-    document.getElementById('analysis-content').innerHTML = marked.parse(currentAnalysis);
     showResults();
 
   } catch (err) {
@@ -794,7 +1050,7 @@ async function analyzePull(transcript, apiKey) {
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 4096,
-      system: PULL_SYSTEM_PROMPT,
+      system: callType === 'discovery' ? PULL_SYSTEM_PROMPT_DISCOVERY : PULL_SYSTEM_PROMPT_SALES,
       messages: [{
         role: 'user',
         content: `Please analyze this sales call transcript using the PULL framework:\n\n${transcript}`,
@@ -823,7 +1079,9 @@ async function copyText(text, btn) {
 function downloadAnalysis() {
   const slug = currentFilename.replace(/\.[^.]+$/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const date = new Date().toISOString().slice(0, 10);
-  const content = `# PULL Analysis — ${currentFilename}\n_${date}_\n\n---\n\n## Transcript\n\n${currentTranscript}\n\n---\n\n## PULL Analysis\n\n${currentAnalysis}`;
+  const content = currentAnalysis
+    ? `# PULL Analysis — ${currentFilename}\n_${date}_\n\n---\n\n## Transcript\n\n${currentTranscript}\n\n---\n\n## PULL Analysis\n\n${currentAnalysis}`
+    : `# Transcript — ${currentFilename}\n_${date}_\n\n---\n\n## Transcript\n\n${currentTranscript}`;
   const blob = new Blob([content], { type: 'text/markdown' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
